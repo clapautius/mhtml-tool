@@ -216,33 +216,59 @@ EOF
 }
 
 my $orig_sep = $/;
+my $crlf_file = 0;
+
+# Read next line. Remove line endings (both unix & windows style).
+sub read_next_line
+{
+    my $cur_line = <>;
+    chomp $cur_line;
+    $cur_line =~ s/\r//;
+    return $cur_line;
+}
+
 
 # Parse headers.
 # Handle multi-line headers (lines starting with spaces are part of a multi-line header).
 # Read data from <> until the first empty line.
+# Set $crlf_file to 1 if it's a CRLF (windoze) file.
 sub parse_headers
 {
     my %headers;
     my $sep = $/;
     $/ = $orig_sep;
     my $full_line = "";
-    while() {
-        my $cur_line = <>;
-        if (not ($cur_line =~ /^$/)) {
-            if ($cur_line =~ /^\s+/) {
-                $full_line .= $cur_line;
+    my $cur_line = <>;
+    # check line ending
+    if ($cur_line =~ /\r$/) {
+        debug_msg("It's a CRLF file");
+        $crlf_file = 1;
+    }
+    chomp $cur_line;
+    $cur_line =~ s/\r//;
+    $full_line = $cur_line;
+    if (not ($cur_line =~ /^$/)) {
+        $cur_line = read_next_line;
+    }
+    while (not ($cur_line =~ /^$/)) {
+        if ($cur_line =~ /^\h+/) {
+            while ($cur_line =~ /^\h+/) {
+                $full_line = $full_line . " " . $cur_line;
+                $cur_line = read_next_line;
                 next;
-            } else {
-                $full_line = $cur_line;
+            }
+            if ($full_line =~ s/^([-\w]+): (.*)$// ) {
+                $headers{$1}= $2;
+                debug_msg("(1) New header $1 with value $2");
             }
         } else {
-            last;
+            if ($full_line =~ s/^([-\w]+): (.*)$// ) {
+                $headers{$1}= $2;
+                debug_msg("(2) New header $1 with value $2");
+            }
         }
-        if ( $full_line =~ s/^([-\w]+): (.*)\n// ) {
-            $headers{$1}= $2;
-            debug_msg("New header $1 with value $2");
-        }
-        $full_line = "";
+        $full_line = $cur_line;
+        $cur_line = read_next_line;
     }
     $/ = $sep;
     return %headers;
@@ -251,7 +277,8 @@ sub parse_headers
 my %global_headers = parse_headers;
 
 abort "Can't find Content-Type header - not a MIME HTML file?" if (!defined($global_headers{'Content-Type'}));
-$global_headers{'Content-Type'} =~ m!multipart/related;.* boundary="?([^"]*)"?$!; # :fixme: - add other possible mime types
+debug_msg("Global Content-Type: $global_headers{'Content-Type'}");
+$global_headers{'Content-Type'} =~ m!multipart/related;.*\h+boundary="?([^"]*)"?$!; # :fixme: - add other possible mime types
 my $boundary= $1;
 my $endcode= $boundary;
 $endcode =~ s/\s+$//;
@@ -262,11 +289,16 @@ my $fh;
 debug_msg("Boundary: $boundary");
 
 {
-    $/= "\n--$boundary\n";
+    if ($crlf_file) {
+        $/= "\r\n--$boundary\r\n";
+    } else {
+        $/= "\n--$boundary\n";
+    }
     <>;
     my $fileind= 1;
     while( defined( my $data= <> ) ) {
         chomp $data;
+        $data =~ s/\R/\n/g; # handle various other line-endings (windows, mac)
         my %headers;
         while( $data =~ s/^([-\w]+): (.*)\n// ) {
             $headers{$1}= $2;
