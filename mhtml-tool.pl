@@ -266,12 +266,13 @@ debug_msg("Boundary: $boundary");
     <>;
     my $fileind= 1;
     while( defined( my $data= <> ) ) {
+        chomp $data;
         my %headers;
         while( $data =~ s/^([-\w]+): (.*)\n// ) {
             $headers{$1}= $2;
             debug_msg("New header $1 with value $2");
             # read (and ignore atm) lines starting with space (multi-line headers)
-            while ($data =~ s/^\s+.*\n// ) {
+            while ($data =~ s/^\h+.*\n// ) {
                 debug_msg("empty line");
             };
         }
