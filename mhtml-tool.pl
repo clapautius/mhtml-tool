@@ -130,6 +130,13 @@ sub abort
 }
 
 
+# Print a message to stdout (if debug is enabled).
+sub debug_msg
+{
+    print ":debug: $_[0]\n";
+}
+
+
 # Generate output file directories and primary HTML file name depending on
 # --output option and primary HTML file name from archive.  In case the primary
 # HTML file is not the first file in the archive, the secondary files directory
@@ -208,17 +215,51 @@ EOF
     exit !$status;
 }
 
-my $firstline= <>;
+my $orig_sep = $/;
 
-$firstline =~ m!Content-Type: multipart/related;.* boundary=(.*)$!
-    or abort "Can't find Content-Type header - not a MIME HTML file?";
+# Parse headers.
+# Handle multi-line headers (lines starting with spaces are part of a multi-line header).
+# Read data from <> until the first empty line.
+sub parse_headers
+{
+    my %headers;
+    my $sep = $/;
+    $/ = $orig_sep;
+    my $full_line = "";
+    while() {
+        my $cur_line = <>;
+        if (not ($cur_line =~ /^$/)) {
+            if ($cur_line =~ /^\s+/) {
+                $full_line .= $cur_line;
+                next;
+            } else {
+                $full_line = $cur_line;
+            }
+        } else {
+            last;
+        }
+        if ( $full_line =~ s/^([-\w]+): (.*)\n// ) {
+            $headers{$1}= $2;
+            debug_msg("New header $1 with value $2");
+        }
+        $full_line = "";
+    }
+    $/ = $sep;
+    return %headers;
+}
 
+my %global_headers = parse_headers;
+
+abort "Can't find Content-Type header - not a MIME HTML file?" if (!defined($global_headers{'Content-Type'}));
+$global_headers{'Content-Type'} =~ m!multipart/related;.* boundary="?([^"]*)"?$!; # :fixme: - add other possible mime types
 my $boundary= $1;
 my $endcode= $boundary;
 $endcode =~ s/\s+$//;
 my %by_url;
 my @htmlfiles;
 my $fh;
+
+debug_msg("Boundary: $boundary");
 
 {
     $/= "\n--$boundary\n";
@@ -228,6 +269,11 @@ my $fh;
         my %headers;
         while( $data =~ s/^([-\w]+): (.*)\n// ) {
             $headers{$1}= $2;
+            debug_msg("New header $1 with value $2");
+            # read (and ignore atm) lines starting with space (multi-line headers)
+            while ($data =~ s/^\s+.*\n// ) {
+                debug_msg("empty line");
+            };
         }
         $data =~ s/^\n//;
         $data =~ s/\n--$endcode--\r?\n$/\n/s;
