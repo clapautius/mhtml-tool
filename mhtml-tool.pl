@@ -278,6 +278,10 @@ debug_msg("Boundary: $boundary");
         $data =~ s/^\n//;
         $data =~ s/\n--$endcode--\r?\n$/\n/s;
         my ($type, $origname);
+        if( defined($headers{"Content-Type"})) {
+            ($type)= $headers{"Content-Type"} =~ /^(\w+\/\w+)\b/;
+            debug_msg("type=$type");
+        }
         if( defined($headers{"Content-Type"}) && $headers{"Content-Type"} =~ /\bname=([^;]*)/ ) {
             $origname= $1;
             ($type)= $headers{"Content-Type"} =~ /^(\w+\/\w+)\b/;
@@ -285,12 +289,16 @@ debug_msg("Boundary: $boundary");
         }
         elsif( defined($headers{"Content-Disposition"}) && $headers{"Content-Disposition"} =~ /\bfilename=([^;]*)/ ) {
             $origname= $1;
-            $type= $origname =~ /\.html?$/i ? "text/html" : "";
+            if (!defined($type)) {
+                $type= $origname =~ /\.html?$/i ? "text/html" : "";
+            }
         }
         elsif( defined($headers{"Content-Location"}) ) {
             $origname= $headers{"Content-Location"};
             $origname =~ s!^.*/!!;
-            $type= "";
+            if (!defined($type)) {
+                $type= "";
+            }
         }
         my $fname= unique_name($origname, $ARGV[0]);
         if( !defined($headers{"Content-Transfer-Encoding"}) ) {
@@ -302,6 +310,8 @@ debug_msg("Boundary: $boundary");
         elsif( $headers{"Content-Transfer-Encoding"} =~ /\bquoted-printable\b/i ) {
             $data= MIME::QuotedPrint::decode($data);
         }
+        debug_msg("origname=$origname; fname=$fname; type=$type");
+        debug_msg("Content-Type: " . $headers{"Content-Type"});
         if( $opt{list} ) {
             $origname =~ s/\s+$// if defined $origname;
             my $size= length($data);
@@ -317,7 +327,13 @@ debug_msg("Boundary: $boundary");
         }
         if( $type eq "text/html" ) {
             $headers{data}= $data;
+            if (scalar @htmlfiles == 0) { # first html file must have a name
+                if (!$headers{fname}) {
+                    $headers{fname} = "index.html"
+                }
+            }
             push @htmlfiles, \%headers;
+            debug_msg("New html file in list: $headers{fname}");
         }
         else {
             mkfiledir($opt{output}, $htmlfiles[0]->{fname}, 1, \%config);
@@ -330,6 +346,10 @@ debug_msg("Boundary: $boundary");
     continue { ++$fileind; }
 }
 
+
+if( $opt{list} ) {
+    exit(0);
+}
 
 mkfiledir($opt{output}, $htmlfiles[0]->{fname}, 0, \%config);
 
