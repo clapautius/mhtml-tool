@@ -6,12 +6,12 @@ use strict;
 
 =head1 NAME
 
-B<unmht> - Unpack a MIME HTML archive
+B<mhtml-tool> - Unpack a MIME HTML archive
 
 
 =head1 SYNOPSIS
 
-B<unmht> unpacks MIME HTML archives that some browsers (such as Opera) save
+B<mhtml-tool> unpacks MIME HTML archives that some browsers (such as Opera) save
 by default.  The file extensions of such archives are .mht or .mhtml.
 
 The first HTML file in the archive is taken to be the primary web page, the
@@ -47,16 +47,16 @@ directory does not exist, it is created.
 
 =head1 SEE ALSO
 
+https://github.com/clapautius/mhtml-tool
+
 http://www.volkerschatz.com/unix/uware/unmht.html
-
-http://www.loganowen.com/mht-rip/
-
-http://sourceforge.net/projects/mhtconv/
-
 
 =head1 COPYLEFT
 
 B<unmht> is Copyright (c) 2012 Volker Schatz.  It may be copied and/or
+modified under the same terms as Perl.
+
+B<mhtml-tool> is Copyright (c) 2018 Tudor M. Pristavu. It may be copied and/or
 modified under the same terms as Perl.
 
 =cut
@@ -202,15 +202,15 @@ my $status= GetOptions(\%opt, @optdescr);
 
 if( !$status || $opt{help} ) {
     print <<EOF;
-Usage: unmht [ -l | --list | -o <dir/ or name> | --output <dir/ or name> ] <MHT file>
+Usage: mhtml-tool [ -l | --list | -o <dir/ or name> | --output <dir/ or name> ] <MHT file>
 By default, unpacks an MHT archive (an archive type saved by some browsers) to
 the current directory.  The first HTML file in the archive is taken for the
 primary web page, and all other contained files are written to a directory
 named after that HTML file.  Options:
 -l, --list    List archive contents (file name, MIME type, size and URL)
 -o, --output  Unpack to directory <dir/> or to file <name>.html
-Use the command "pod2man unmht > unmht.1" or
-"pod2html unmht > unmht.html" to extract the manual.
+Use the command "pod2man mhtml-tool > mhtml-tool.1" or
+"pod2html mhtml-tool > mhtml-tool.html" to extract the manual.
 EOF
     exit !$status;
 }
