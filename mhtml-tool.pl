@@ -130,13 +130,6 @@ sub abort
 }
 
 
-# Print a message to stdout (if debug is enabled).
-sub debug_msg
-{
-    print ":debug: $_[0]\n";
-}
-
-
 # Generate output file directories and primary HTML file name depending on
 # --output option and primary HTML file name from archive.  In case the primary
 # HTML file is not the first file in the archive, the secondary files directory
@@ -194,7 +187,7 @@ sub mkfiledir
 
 
 my %opt;
-my @optdescr= ( 'output|o=s', 'list|l!', 'help|h|?!' );
+my @optdescr= ( 'output|o=s', 'list|l!', 'help|h|?!', 'debug|d!' );
 my %config;
 
 my $status= GetOptions(\%opt, @optdescr);
@@ -217,6 +210,16 @@ EOF
 
 my $orig_sep = $/;
 my $crlf_file = 0;
+
+
+# Print a message to stdout (if debug is enabled).
+sub debug_msg
+{
+    if ($opt{debug}) {
+        print ":debug: $_[0]\n";
+    }
+}
+
 
 # Read next line. Remove line endings (both unix & windows style).
 sub read_next_line
@@ -350,6 +353,7 @@ debug_msg("Boundary: $boundary");
         }
         debug_msg("origname=$origname; fname=$fname; type=$type");
         debug_msg("Content-Type: " . $headers{"Content-Type"});
+        debug_msg("Data size: " . length($data));
         if( $opt{list} ) {
             $origname =~ s/\s+$// if defined $origname;
             my $size= length($data);
