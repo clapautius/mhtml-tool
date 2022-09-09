@@ -241,7 +241,7 @@ sub parse_headers
     my $sep = $/;
     $/ = $orig_sep;
     my $full_line = "";
-    my $cur_line = <>;
+    my $cur_line = <>;  # don't use read_next_line so we can look for \r
     # check line ending
     if ($cur_line =~ /\r$/) {
         debug_msg("It's a CRLF file");
@@ -250,54 +250,63 @@ sub parse_headers
     chomp $cur_line;
     $cur_line =~ s/\r//;
     $full_line = $cur_line;
-    if (not ($cur_line =~ /^$/)) {
-        $cur_line = read_next_line;
-    }
+
     while (not ($cur_line =~ /^$/)) {
-        if ($cur_line =~ /^\h+/) {
+        if ($cur_line =~ /^\h+/) {   # if a continued line...
             while ($cur_line =~ /^\h+/) {
                 $full_line = $full_line . " " . $cur_line;
-                $cur_line = read_next_line;
+                $cur_line = read_next_line();
                 next;
             }
             if ($full_line =~ s/^([-\w]+): (.*)$// ) {
-                $headers{$1}= $2;
+                $headers{$1} = $2;
                 debug_msg("(1) New header $1 with value $2");
             }
         } else {
             if ($full_line =~ s/^([-\w]+): (.*)$// ) {
-                $headers{$1}= $2;
+                $headers{$1} = $2;
                 debug_msg("(2) New header $1 with value $2");
             }
         }
+        $cur_line = read_next_line();
         $full_line = $cur_line;
-        $cur_line = read_next_line;
     }
     $/ = $sep;
     return %headers;
 }
 
-my %global_headers = parse_headers;
+my %global_headers = parse_headers();
 
 abort "Can't find Content-Type header - not a MIME HTML file?" if (!defined($global_headers{'Content-Type'}));
 debug_msg("Global Content-Type: $global_headers{'Content-Type'}");
-$global_headers{'Content-Type'} =~ m!multipart/related;.*\h+boundary="?([^"]*)"?$!; # :fixme: - add other possible mime types
-my $boundary= $1;
-my $endcode= $boundary;
-$endcode =~ s/\s+$//;
-my %by_url;
-my @htmlfiles;
-my $fh;
 
-debug_msg("Boundary: $boundary");
+my $boundary = '';
+my $endcode = '';
 
-{
+# FIXME: - add other possible mime types
+# Types implemented so far are:
+#   Content-Type: multipart/related; boundary="----=_NextPart_01D8BCC9.47C2B260"
+#   Content-Type: text/html; charset="utf-8"
+if ( $global_headers{'Content-Type'} =~ m!multipart/related;.*\h+boundary="?([^"]*)"?$! ) {
+    $endcode = $boundary = $1;
+    $endcode =~ s/\s+$//;
     if ($crlf_file) {
         $/= "\r\n--$boundary\r\n";
     } else {
         $/= "\n--$boundary\n";
     }
-    <>;
+    debug_msg("Boundary: $boundary");
+}
+elsif ( $global_headers{'Content-Type'} =~ m!text/html! ) {
+    $/ = '';
+}
+
+my %by_url;
+my @htmlfiles;
+my $fh;
+
+{
+    #$_ = <>;
     my $fileind= 1;
     while( defined( my $data= <> ) ) {
         chomp $data;
@@ -311,12 +320,22 @@ debug_msg("Boundary: $boundary");
                 debug_msg("empty line");
             };
         }
+        if (scalar(%headers) == 0) {
+            %headers = %global_headers;   # fallback to the global headers as needed, usually for "text"
+        }
         $data =~ s/^\n//;
         $data =~ s/\n--$endcode--\r?\n$/\n/s;
         my ($type, $origname);
         if( defined($headers{"Content-Type"})) {
             ($type)= $headers{"Content-Type"} =~ /^(\w+\/\w+)\b/;
             debug_msg("type=$type");
+        }
+        else {
+            print "Error: No Content-Type found, skipping chunk\n";
+            # we could print the bad chunk here...
+            # but it's probably just a "warning" about
+            #   "if you see this your software isn't recognizing a web archive file"
+            next;
         }
         if( defined($headers{"Content-Type"}) && $headers{"Content-Type"} =~ /\bname=([^;]*)/ ) {
             $origname= $1;
@@ -341,9 +360,10 @@ debug_msg("Boundary: $boundary");
                 $type= "";
             }
         }
+
         my $fname= unique_name($origname, $ARGV[0]);
         if( !defined($headers{"Content-Transfer-Encoding"}) ) {
-            print STDERR "Warning: Encoding of ", ordinal($fileind), " file not found - leaving as-is.\n";
+            print STDERR "Info: Encoding of ", ordinal($fileind), " file not found - leaving as-is.\n";
         }
         elsif( $headers{"Content-Transfer-Encoding"} =~ /\bbase64\b/i ) {
             $data= MIME::Base64::decode($data);
