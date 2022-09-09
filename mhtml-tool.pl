@@ -300,6 +300,9 @@ if ( $global_headers{'Content-Type'} =~ m!multipart/related;.*\h+boundary="?([^"
 elsif ( $global_headers{'Content-Type'} =~ m!text/html! ) {
     $/ = '';
 }
+else {
+    die "Error: Unknown Content-Type: $global_headers{'Content-Type'}\n";
+}
 
 my %by_url;
 my @htmlfiles;
