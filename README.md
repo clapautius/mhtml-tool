@@ -23,5 +23,5 @@ The primary web page is written to the output directory (the current directory b
 default), the requisites to a subdirectory named after the primary HTML file name without
 extension, with "_files" appended.
 
-**Link URLs in all HTML files referring to requisites are rewritten to point to the saved
+**URLs in all HTML files referring to requisites are rewritten to point to the saved
 files.**
